@@ -44,7 +44,7 @@
  * @author Jason Mulligan <jason.mulligan@avoidwork.com>
  * @link http://abaaso.com/
  * @module abaaso
- * @version 2.4.1
+ * @version 2.4.2
  */
 (function (global) {
 "use strict";
@@ -1106,27 +1106,29 @@ if (typeof global.abaaso === "undefined") global.abaaso = (function () {
 				    r    = 0,
 				    nth  = 0,
 				    f    = false,
-				    set  = function (rec, key) {
-				    	var guid = utility.genId();
-
-				    	if (self.key !== null && typeof rec[self.key] !== "undefined") {
-							key = rec[self.key];
-							delete rec[self.key];
-						}
-
-						obj.once("afterDataSet", function () {
-							this.un("failedDataSet", guid);
-							if (++r && r === nth) completed();
-						}, guid).once("failedDataSet", function () { this.un("afterDataSet", guid); }, guid);
-
-						self.set(key, rec, sync);
-					},
-					completed = function () {
-						if (type === "del") this.reindex();
-						obj.fire("afterDataBatch");
-					},
 					guid = utility.genId(true),
-				    key;
+				    completed, key, set;
+
+				set = function (rec, key) {
+					var guid = utility.genId();
+
+					if (self.key !== null && typeof rec[self.key] !== "undefined") {
+						key = rec[self.key];
+						delete rec[self.key];
+					}
+
+					obj.once("afterDataSet", function () {
+						this.un("failedDataSet", guid);
+						if (++r && r === nth) completed();
+					}, guid).once("failedDataSet", function () { this.un("afterDataSet", guid); }, guid);
+
+					self.set(key, rec, sync);
+				};
+
+				completed = function () {
+					if (type === "del") this.reindex();
+					obj.fire("afterDataBatch");
+				};
 
 				obj.fire("beforeDataBatch", data);
 
@@ -1142,7 +1144,10 @@ if (typeof global.abaaso === "undefined") global.abaaso = (function () {
 						break;
 					case "del":
 						obj.on("afterDataDelete", function () {
-							if (r++ && r === nth) completed();
+							if (r++ && r === nth) {
+								obj.un("afterDataDelete", guid);
+								completed();
+							}
 						}, guid).once("failedDataDelete", function () {
 							obj.un("afterDataDelete", guid);
 							if (!f) {
@@ -1167,9 +1172,11 @@ if (typeof global.abaaso === "undefined") global.abaaso = (function () {
 										set(i, idx);
 										break;
 									case i.indexOf("//") === -1:
-										i = self.uri + i;
+										key = i;
+										i   = self.uri + i;
 									default:
-										i.get(function (arg) { set(self.source === null ? arg : arg[self.source], idx); }, null, utility.merge({withCredentials: self.credentials}, self.headers));
+										if (typeof key === "undefined") key = i.replace(/.*\//, "");
+										i.get(function (arg) { set(self.source === null ? arg : arg[self.source], key); }, null, utility.merge({withCredentials: self.credentials}, self.headers));
 										break;
 								}
 								else self.del(i, false, sync);
@@ -4832,7 +4839,7 @@ if (typeof global.abaaso === "undefined") global.abaaso = (function () {
 			return observer.remove.call(observer, o, e, i, s);
 		},
 		update          : element.update,
-		version         : "2.4.1"
+		version         : "2.4.2"
 	};
 })();
 if (typeof abaaso.bootstrap === "function") abaaso.bootstrap();
